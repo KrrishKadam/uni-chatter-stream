@@ -2,39 +2,81 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Digital Notice Board Design System - Modern Academic Theme */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
+    /* Background & Surface Colors */
+    --background: 250 100% 99%;
+    --foreground: 235 15% 15%;
+    --surface: 250 50% 98%;
+    
+    /* Card & Content */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --card-foreground: 235 15% 15%;
+    --card-border: 220 25% 92%;
+    
+    /* Primary Brand Colors - Professional Blue */
+    --primary: 220 90% 55%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 220 90% 50%;
+    --primary-muted: 220 90% 96%;
+    
+    /* Secondary - Academic Purple */
+    --secondary: 260 70% 60%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-hover: 260 70% 55%;
+    --secondary-muted: 260 70% 96%;
+    
+    /* Accent - Vibrant Blue */
+    --accent: 200 100% 65%;
+    --accent-foreground: 0 0% 100%;
+    --accent-hover: 200 100% 60%;
+    --accent-muted: 200 100% 96%;
+    
+    /* Semantic Colors */
+    --success: 142 76% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 35 91% 55%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Text & Content */
+    --muted: 220 15% 95%;
+    --muted-foreground: 235 10% 55%;
+    --subtle: 220 10% 88%;
+    --subtle-foreground: 235 15% 40%;
+    
+    /* Interactive Elements */
+    --border: 220 25% 92%;
+    --input: 220 25% 96%;
+    --ring: 220 90% 55%;
+    --link: 220 90% 55%;
+    --link-hover: 220 90% 45%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(220 90% 55%), hsl(260 70% 60%));
+    --gradient-accent: linear-gradient(135deg, hsl(200 100% 65%), hsl(220 90% 55%));
+    --gradient-subtle: linear-gradient(180deg, hsl(250 100% 99%), hsl(220 25% 97%));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(220 25% 98%));
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 3px hsl(235 15% 15% / 0.08);
+    --shadow-md: 0 4px 12px hsl(235 15% 15% / 0.12);
+    --shadow-lg: 0 8px 30px hsl(235 15% 15% / 0.15);
+    --shadow-post: 0 2px 8px hsl(220 90% 55% / 0.08);
+    --shadow-hover: 0 4px 16px hsl(220 90% 55% / 0.15);
+    
+    /* Animations */
+    --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    
+    /* Spacing & Layout */
+    --radius: 0.75rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.5rem;
 
     --radius: 0.5rem;
 
