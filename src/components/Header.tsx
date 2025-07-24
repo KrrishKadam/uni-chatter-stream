@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Vote, UserX, Settings } from "lucide-react";
+import ThemeToggle from "./ThemeToggle";
 
 interface HeaderProps {
   activeTab: 'feed' | 'anonymous' | 'admin';
@@ -56,6 +57,8 @@ const Header = ({ activeTab, onTabChange, isAdmin = false }: HeaderProps) => {
                 <span className="hidden sm:inline">Admin</span>
               </Button>
             )}
+            
+            <ThemeToggle />
           </nav>
         </div>
       </div>
