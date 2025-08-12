@@ -1,14 +1,16 @@
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Vote, UserX, Settings } from "lucide-react";
+import { MessageSquare, Vote, UserX, Settings, LogOut, User } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 
 interface HeaderProps {
   activeTab: 'feed' | 'anonymous' | 'admin';
   onTabChange: (tab: 'feed' | 'anonymous' | 'admin') => void;
   isAdmin?: boolean;
+  userEmail?: string;
+  onSignOut: () => void;
 }
 
-const Header = ({ activeTab, onTabChange, isAdmin = false }: HeaderProps) => {
+const Header = ({ activeTab, onTabChange, isAdmin = false, userEmail, onSignOut }: HeaderProps) => {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-card-border bg-gradient-card backdrop-blur-md">
       <div className="container mx-auto px-4 py-4">
@@ -57,9 +59,23 @@ const Header = ({ activeTab, onTabChange, isAdmin = false }: HeaderProps) => {
                 <span className="hidden sm:inline">Admin</span>
               </Button>
             )}
-            
-            <ThemeToggle />
           </nav>
+
+          <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+              <User className="h-4 w-4" />
+              <span className="hidden md:inline">{userEmail}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onSignOut}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+            <ThemeToggle />
+          </div>
         </div>
       </div>
     </header>

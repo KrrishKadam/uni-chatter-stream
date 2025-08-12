@@ -1,247 +1,351 @@
 import { useState, useEffect } from "react";
-import Header from "@/components/Header";
-import PostCard, { Post } from "@/components/PostCard";
+import PostCard from "@/components/PostCard";
 import CreatePost from "@/components/CreatePost";
+import Header from "@/components/Header";
 import AnonymousForm from "@/components/AnonymousForm";
 import AdminDashboard from "@/components/AdminDashboard";
-import { useToast } from "@/hooks/use-toast";
-
-interface AnonymousSubmission {
-  id: string;
-  category: string;
-  content: string;
-  urgency: 'low' | 'medium' | 'high';
-  timestamp: Date;
-  status: 'new' | 'reviewed' | 'resolved';
-}
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase, Post, AnonymousSubmission } from "@/lib/supabase";
+import { toast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<'feed' | 'anonymous' | 'admin'>('feed');
   const [posts, setPosts] = useState<Post[]>([]);
   const [anonymousSubmissions, setAnonymousSubmissions] = useState<AnonymousSubmission[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false); // In real app, this would be based on authentication
-  const { toast } = useToast();
+  const { user, profile, isAdmin, signOut } = useAuth();
 
-  // Demo data initialization
   useEffect(() => {
-    const demoReports: AnonymousSubmission[] = [
-      {
-        id: "anon-001",
-        category: "bullying",
-        content: "There's been ongoing harassment in the computer lab during evening hours. Students are being intimidated and their work is being disrupted. The issue has been happening for the past two weeks.",
-        urgency: "high",
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-        status: "new"
-      },
-      {
-        id: "anon-002",
-        category: "mental-health",
-        content: "The exam pressure is becoming overwhelming. Many students are struggling with anxiety and there's limited counseling support available. We need more mental health resources.",
-        urgency: "medium",
-        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-        status: "reviewed"
-      }
-    ];
+    fetchPosts();
+    fetchAnonymousSubmissions();
 
-    const demoPosts: Post[] = [
-      {
-        id: "1",
-        type: "query",
-        author: "Sarah Johnson",
-        content: "Can anyone explain the difference between async/await and promises in JavaScript? I'm preparing for my web development exam and getting confused between the two approaches.",
-        timestamp: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-        likes: 12,
-        replies: 3
-      },
-      {
-        id: "2", 
-        type: "poll",
-        author: "Prof. Michael Chen",
-        content: "We're planning the schedule for next semester's programming courses. Which time slots work best for the majority of students?",
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-        likes: 8,
-        replies: 15,
-        poll: {
-          question: "Which time slot do you prefer for programming classes?",
-          options: [
-            { id: "morning", text: "Morning (9-11 AM)", votes: 45 },
-            { id: "afternoon", text: "Afternoon (2-4 PM)", votes: 32 },
-            { id: "evening", text: "Evening (6-8 PM)", votes: 23 }
-          ],
-          totalVotes: 100,
-          hasVoted: false
-        }
-      },
-      {
-        id: "3",
-        type: "query", 
-        author: "Alex Kumar",
-        content: "Has anyone taken the Machine Learning elective with Dr. Rodriguez? How's the workload and what programming languages does she use in assignments?",
-        timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
-        likes: 7,
-        replies: 8
-      }
-    ];
+    // Set up real-time subscriptions
+    const postsSubscription = supabase
+      .channel('posts')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'posts' },
+        () => fetchPosts()
+      )
+      .subscribe();
 
-    setPosts(demoPosts);
-    setAnonymousSubmissions(demoReports);
+    const submissionsSubscription = supabase
+      .channel('anonymous_submissions')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'anonymous_submissions' },
+        () => fetchAnonymousSubmissions()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(postsSubscription);
+      supabase.removeChannel(submissionsSubscription);
+    };
   }, []);
 
-  const handleCreatePost = (newPost: {
-    type: 'query' | 'poll';
-    content: string;
-    poll?: { question: string; options: string[] };
-  }) => {
-    const post: Post = {
-      id: Date.now().toString(),
-      type: newPost.type,
-      author: "You", // In real app, this would be the logged-in user
-      content: newPost.content,
-      timestamp: new Date(),
-      likes: 0,
-      replies: 0,
-    };
+  const fetchPosts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          profiles!posts_author_id_fkey(full_name, email),
+          poll_options(*),
+          poll_votes!inner(option_id, user_id),
+          post_likes!inner(user_id)
+        `)
+        .order('created_at', { ascending: false });
 
-    if (newPost.type === 'poll' && newPost.poll) {
-      post.poll = {
-        question: newPost.poll.question,
-        options: newPost.poll.options.map((text, index) => ({
-          id: `option-${index}`,
-          text,
-          votes: 0
-        })),
-        totalVotes: 0,
-        hasVoted: false
-      };
+      if (error) throw error;
+
+      const postsWithUserData = data?.map(post => ({
+        ...post,
+        user_vote: post.poll_votes?.find((vote: any) => vote.user_id === user?.id),
+        user_liked: post.post_likes?.some((like: any) => like.user_id === user?.id)
+      })) || [];
+
+      setPosts(postsWithUserData);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch posts",
+        variant: "destructive",
+      });
     }
-
-    setPosts([post, ...posts]);
-    toast({
-      title: "Posted Successfully!",
-      description: newPost.type === 'query' ? "Your query has been posted." : "Your poll has been created.",
-    });
   };
 
-  const handleAnonymousSubmission = (submission: {
-    category: string;
-    content: string;
-    urgency: 'low' | 'medium' | 'high';
-  }) => {
-    const newSubmission: AnonymousSubmission = {
-      id: `anon-${Date.now()}`,
-      ...submission,
-      timestamp: new Date(),
-      status: 'new'
-    };
+  const fetchAnonymousSubmissions = async () => {
+    if (!isAdmin) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('anonymous_submissions')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    setAnonymousSubmissions([newSubmission, ...anonymousSubmissions]);
+      if (error) throw error;
+      setAnonymousSubmissions(data || []);
+    } catch (error) {
+      console.error('Error fetching submissions:', error);
+    }
   };
 
-  const handleVote = (postId: string, optionId: string) => {
-    setPosts(posts.map(post => {
-      if (post.id === postId && post.poll && !post.poll.hasVoted) {
-        const updatedOptions = post.poll.options.map(option =>
-          option.id === optionId
-            ? { ...option, votes: option.votes + 1 }
-            : option
-        );
-        
-        return {
-          ...post,
-          poll: {
-            ...post.poll,
-            options: updatedOptions,
-            totalVotes: post.poll.totalVotes + 1,
-            hasVoted: true,
-            userVote: optionId
-          }
-        };
+  const handleCreatePost = async (newPost: any) => {
+    try {
+      const postData = {
+        author_id: user?.id,
+        content: newPost.content,
+        type: newPost.type,
+        poll_question: newPost.type === 'poll' ? newPost.poll?.question : null,
+      };
+
+      const { data: post, error } = await supabase
+        .from('posts')
+        .insert([postData])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // If it's a poll, insert poll options
+      if (newPost.type === 'poll' && newPost.poll?.options) {
+        const pollOptions = newPost.poll.options.map((option: any) => ({
+          post_id: post.id,
+          option_text: option.text
+        }));
+
+        const { error: optionsError } = await supabase
+          .from('poll_options')
+          .insert(pollOptions);
+
+        if (optionsError) throw optionsError;
       }
-      return post;
-    }));
 
-    toast({
-      title: "Vote Recorded",
-      description: "Thanks for participating in the poll!",
-    });
+      toast({
+        title: "Success",
+        description: "Post created successfully!",
+      });
+
+      fetchPosts(); // Refresh posts
+    } catch (error: any) {
+      console.error('Error creating post:', error);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleLike = (postId: string) => {
-    setPosts(posts.map(post => 
-      post.id === postId 
-        ? { ...post, likes: (post.likes || 0) + 1 }
-        : post
-    ));
+  const handleAnonymousSubmission = async (submission: { category: string; content: string; urgency: 'low' | 'medium' | 'high'; }) => {
+    try {
+      const { error } = await supabase
+        .from('anonymous_submissions')
+        .insert([submission]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Anonymous submission sent successfully!",
+      });
+    } catch (error: any) {
+      console.error('Error submitting:', error);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleUpdateSubmissionStatus = (id: string, status: 'new' | 'reviewed' | 'resolved') => {
-    setAnonymousSubmissions(submissions =>
-      submissions.map(submission =>
-        submission.id === id
-          ? { ...submission, status }
-          : submission
-      )
-    );
+  const handleVote = async (postId: string, optionId: string) => {
+    try {
+      // Check if user already voted
+      const { data: existingVote } = await supabase
+        .from('poll_votes')
+        .select('*')
+        .eq('post_id', postId)
+        .eq('user_id', user?.id)
+        .single();
 
-    toast({
-      title: "Status Updated",
-      description: `Submission marked as ${status}.`,
-    });
+      if (existingVote) {
+        // Update existing vote
+        const { error } = await supabase
+          .from('poll_votes')
+          .update({ option_id: optionId })
+          .eq('id', existingVote.id);
+
+        if (error) throw error;
+      } else {
+        // Insert new vote
+        const { error } = await supabase
+          .from('poll_votes')
+          .insert([{
+            post_id: postId,
+            option_id: optionId,
+            user_id: user?.id
+          }]);
+
+        if (error) throw error;
+      }
+
+      fetchPosts(); // Refresh to get updated vote counts
+    } catch (error: any) {
+      console.error('Error voting:', error);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleLike = async (postId: string) => {
+    try {
+      const { data: existingLike } = await supabase
+        .from('post_likes')
+        .select('*')
+        .eq('post_id', postId)
+        .eq('user_id', user?.id)
+        .single();
+
+      if (existingLike) {
+        // Unlike
+        const { error } = await supabase
+          .from('post_likes')
+          .delete()
+          .eq('id', existingLike.id);
+
+        if (error) throw error;
+      } else {
+        // Like
+        const { error } = await supabase
+          .from('post_likes')
+          .insert([{
+            post_id: postId,
+            user_id: user?.id
+          }]);
+
+        if (error) throw error;
+      }
+
+      fetchPosts(); // Refresh to get updated like counts
+    } catch (error: any) {
+      console.error('Error liking post:', error);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUpdateSubmissionStatus = async (id: string, status: 'new' | 'reviewed' | 'resolved') => {
+    try {
+      const { error } = await supabase
+        .from('anonymous_submissions')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      fetchAnonymousSubmissions(); // Refresh submissions
+      toast({
+        title: "Success",
+        description: "Submission status updated!",
+      });
+    } catch (error: any) {
+      console.error('Error updating status:', error);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSignOut = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-subtle">
+    <div className="min-h-screen bg-background">
       <Header 
         activeTab={activeTab} 
         onTabChange={setActiveTab}
         isAdmin={isAdmin}
+        userEmail={profile?.email}
+        onSignOut={handleSignOut}
       />
-
-      <main className="container mx-auto px-4 py-8">
+      
+      <main className="container mx-auto px-4 py-6 max-w-2xl">
         {activeTab === 'feed' && (
-          <div className="max-w-2xl mx-auto space-y-6">
-            <CreatePost onSubmit={handleCreatePost} />
+          <div className="space-y-6">
+            <CreatePost 
+              onSubmit={handleCreatePost} 
+              userInitials={profile?.full_name?.split(' ').map(n => n[0]).join('') || profile?.email?.[0]?.toUpperCase() || 'U'} 
+            />
             
-            {posts.length === 0 ? (
-              <div className="text-center py-12">
-                <h3 className="text-lg font-semibold text-foreground mb-2">No posts yet</h3>
-                <p className="text-muted-foreground">Be the first to post a query or create a poll!</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {posts.map(post => (
-                  <PostCard
-                    key={post.id}
-                    post={post}
-                    onLike={handleLike}
-                    onVote={handleVote}
-                  />
-                ))}
-              </div>
-            )}
+            <div className="space-y-4">
+              {posts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={{
+                    id: post.id,
+                    author: post.profiles?.full_name || post.profiles?.email || 'Unknown User',
+                    content: post.content,
+                    timestamp: new Date(post.created_at),
+                    likes: post.likes_count,
+                    replies: post.replies_count,
+                    type: post.type,
+                    poll: post.type === 'poll' ? {
+                      question: post.poll_question || '',
+                      options: post.poll_options?.map((option: any) => ({
+                        id: option.id,
+                        text: option.option_text,
+                        votes: option.votes_count
+                      })) || [],
+                      totalVotes: post.poll_options?.reduce((sum: number, option: any) => sum + option.votes_count, 0) || 0,
+                      hasVoted: !!post.user_vote,
+                      userVote: post.user_vote?.option_id
+                    } : undefined
+                  }}
+                  onLike={() => handleLike(post.id)}
+                  onReply={() => console.log('Reply to:', post.id)}
+                  onVote={(optionId) => handleVote(post.id, optionId)}
+                />
+              ))}
+            </div>
           </div>
         )}
-
+        
         {activeTab === 'anonymous' && (
           <AnonymousForm onSubmit={handleAnonymousSubmission} />
         )}
-
-        {activeTab === 'admin' && (
-          <AdminDashboard
-            submissions={anonymousSubmissions}
+        
+        {activeTab === 'admin' && isAdmin && (
+          <AdminDashboard 
+            submissions={anonymousSubmissions.map(sub => ({
+              ...sub,
+              timestamp: new Date(sub.created_at)
+            }))}
             onUpdateStatus={handleUpdateSubmissionStatus}
           />
         )}
-
-        {/* Admin Toggle for Demo */}
-        <div className="fixed bottom-4 right-4">
-          <button
-            onClick={() => setIsAdmin(!isAdmin)}
-            className="px-4 py-2 bg-gradient-primary text-white rounded-lg shadow-lg text-sm font-medium"
-          >
-            {isAdmin ? 'Exit Admin' : 'Admin Mode'}
-          </button>
-        </div>
+        
+        {activeTab === 'admin' && !isAdmin && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">You don't have admin permissions to view this section.</p>
+          </div>
+        )}
       </main>
     </div>
   );
